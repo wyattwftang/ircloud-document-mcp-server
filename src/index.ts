@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -10,56 +12,68 @@ const createServer = () => {
     version: VERSION,
   });
 
-  // 1. 注册资源 (Resource)
+  // 1. 资源 (Resource) - 提供知识库内容
   server.registerResource(
     "ircloud",
-    "ircloud://system-prompt",
+    "ircloud://knowledge-base",
     {
-      title: "系统提示词",
-      description: "智能业务助手的核心提示词",
-      mimeType: "text/plain",
+      title: "铱云知识库",
+      description: "铱云产品使用知识库",
+      mimeType: "text/markdown",
     },
     async (uri) => {
       return {
         contents: [
           {
             uri: uri.href,
-            text: systemPrompt,
+            text: ircloudKnowledge,
           },
         ],
       };
     }
   );
 
-  // 2. 注册提示词 (Prompt)
+  // 2. 提示词 (Prompt) - 生成问题模板
   server.registerPrompt(
-    "document-qa",
+    "ask-question",
     {
-      title: "文档问答",
-      description: "根据知识文档回答用户问题",
-      argsSchema: { question: z.string() }, // 输入参数校验
+      title: "智能问答",
+      description: "根据知识库回答用户问题",
+      argsSchema: {
+        question: z.string().describe("用户问题"),
+        context: z.string().optional().describe("问题上下文"),
+      },
     },
-    ({ question }) => ({
+    ({ question, context }) => ({
       messages: [
+        {
+          role: "assistant",
+          content: {
+            type: "text",
+            text: systemPrompt,
+          },
+        },
         {
           role: "user",
           content: {
             type: "text",
-            text: `请根据知识文档回答以下问题：\n\n${question}`,
+            text: `问题：${question}${
+              context ? `\n上下文：${context}` : ""
+            }\n\n请根据铱云知识库回答这个问题。`,
           },
         },
       ],
     })
   );
 
-  // 3. 注册工具 (Tool)
+  // 3. 注册工具 (Tool) - 搜索答案
   server.registerTool(
-    "search-document",
+    "search-answer",
     {
-      title: "知识文档搜索",
-      description: "在知识文档中搜索用户答案",
+      title: "知识搜索回答",
+      description: "搜索知识库并生成答案",
       inputSchema: {
-        question: z.string().describe("用户的问题"),
+        question: z.string().describe("用户问题"),
       },
     },
     async ({ question }) => {
